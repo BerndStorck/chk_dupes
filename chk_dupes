@@ -1,48 +1,48 @@
 #!/usr/bin/env bash
 #
-# chk_dupes 1.0.0, 2024-04-05
+# chk_dupes
+# Version: 1.1.0
 #
-# Project description:
-# Quick and dirty geschriebenes Script, das hilft Dateidubletten zu entfernen.
+# Project Description:
+# This script helps identify and remove duplicate files within specified directories.
 #
-# Aufruf
-# in einem Verzeichnis mit einem oder mehreren Verzeichnisnamensanfaengen
-# unmittelbarer Unterordner. Beispielsweise:
+# How it works:
+# The script quickly identifies all directories with duplicates in an initial run,
+# writes their names into a file called "folders", and then goes through these
+# directories in a dialogue with the user.
 #
-# chk_dupes A B C  # Alle direkten Unterverzeichnisse, die mit A oder B oder C beginnen.
+# Usage:
+# ./chk_dupes [directory_name_beginnings...]
 #
-# Das Script ermittelt in einem ersten schnellen Durchlauf alle Verzeichnisse mit
-# Dubletten, schreibt deren Namen in eine Datei namens "folders" und geht diese
-# Verzeichnisse dann mit dem Anwender im Dialog durch.
+# Dependencies:
+# - tree
+# - fdupes
 #
-# Fuer mich war das Script eine Hilfe beim Aufraeumen; wie solide das Hilfsprogramm
-# 'fdupes' arbeitet, kann ich nicht garantieren. Normalerweise muesste es sehr
-# verlaesslich sein. (Identifikation von Dubletten durch einen md5-Hashwerrt,
-# also am Dateiinhalt unabhängig vom Dateinamen.
+# Author: Bernd Storck
+# Contact: https://www.facebook.com/BStLinux/
 #
-# ABHAENGIGKEITEN
+# History: 2024-04-05, 2024-04-06
+# Updated: 2024-04-06
 #
-# Installiert sein muessen 'tree' und 'fdupes'.
-#
-# Author: Bernd Storck, https://www.facebook.com/BStLinux/
-#
-# Copyright: Nervt mich nicht! :-)
+# Copyright (c) 2024 Bernd Storck
+# All rights reserved.
 #
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 
+# Funktion zur Anzeige der Verwendung des Skripts
 usage() {
 echo " chk_dupes $VERSION
 
  AUFRUF
 
  in einem Verzeichnis mit einem oder mehreren Verzeichnisnamensanfaengen
- unmittelbarer Unterordner. 
+ unmittelbarer Unterordner.
 
  Um beispielsweise alle direkten Unterverzeichnisse, die mit A oder B oder C
  beginnen, zu überprüfen:
 
-   chk_dupes A B C  
+   chk_dupes A B C
 
  Das Programm arbeitet im Dialog: Zu allen Dubletten die es findet, fragt es den
  Anwender, welche er behalten (!) moechte. Will man eine Datei behalten, gibt man
@@ -56,6 +56,21 @@ echo " chk_dupes $VERSION
 "
 }
 
+is_validate_directory_name() {
+# Determines whether all given strings would be valid
+# directory names under Linux.
+
+  local invalid_chars='[^a-zA-Z0-9._-+]'
+  for dir_name in "$@"; do
+    if [[ $dir_name =~ $invalid_chars ]]; then
+      echo "Ungültiger Verzeichnisname: $dir_name"
+      return 1
+    fi
+  done
+  return 0
+}
+
+
 case "$1" in
   -h|--help|--hilf|-help|-hilf)
     usage; exit;;
@@ -63,7 +78,8 @@ esac
 
 stop_execution=
 
-# Error messages bbecause of unfullfilled dependencies:
+# Error messages because of unfullfilled dependencies:
+# Überprüft, ob erforderliche Programme installiert sind
 for needed_prog in tree fdupes; do
   if ! command -v "$needed_prog" >/dev/null 2>&1; then
     echo >&2 "Das Programm '$needed_prog' fehlt."  > /dev/stderr
@@ -71,8 +87,15 @@ for needed_prog in tree fdupes; do
   fi
 done
 
+# Beenden des Skripts, wenn erforderliche Programme fehlen:
 if [ -n "$stop_execution" ]; then
   echo "Abbruch: Installieren Sie die notwenigen Programme!" > /dev/stderr
+  exit 1
+fi
+
+# Überprüfung der Verzeichnisnamen:
+if ! is_validate_directory_name "$@"; then
+  echo "Das Skript wurde aufgrund ungültiger Eingabeparameter beendet."
   exit 1
 fi
 
@@ -85,10 +108,10 @@ alternatives="${alternatives##|}"
 
 
 # Write the file 'list' containing the names of all direct sub folders:
-rm folders 2> /dev/null
 tree -d -L 1 | cut -d' '  -f2 | grep -E "^\b($alternatives)" > list
 
 # Write the file "folders" with the names of the folders with dupes:
+rm folders 2> /dev/null
 while read -r line; do
   if fdupes -qr "$line" | grep .; then
     echo "$line" >> folders
@@ -98,10 +121,10 @@ done < list
 # Starts dialogical delete session:
 if [ -f folders ]; then
   cat folders
-  sleep 3
+  sleep 2
   while read -r line; do
     echo -e "\nOrdner \"$line\":"
-    sleep 2
+    sleep 1
     echo
     fdupes -rd "$line"
   done < folders
@@ -110,3 +133,5 @@ else
 fi
 
 rm -f list 2> /dev/null
+
+exit 0
